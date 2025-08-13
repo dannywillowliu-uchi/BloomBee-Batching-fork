@@ -186,6 +186,11 @@ class TransformerConnectionHandler(ConnectionHandler):
                         f"Cannot allocate KV cache for {max_length} tokens, max = {self.inference_max_length}"
                     )
 
+                # HARDCODED LIMIT: Cap max_length to prevent large cache allocations
+                if max_length is not None:
+                    max_length = min(max_length, 256)
+                    print(f"[DEBUG] Handler: max_length capped to {max_length}")
+
                 batch_size = request.tensors[0].size[0] if request.tensors else 1
                 end_batch_size_time = perf_counter()
                 print('prepare time ', end_batch_size_time-end_msg_serial_time)

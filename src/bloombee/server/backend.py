@@ -98,7 +98,7 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         )
 
         self.cache_bytes_per_token: Dict[torch.device, int] = Counter()
-        for descr in self.get_inference_cache_descriptors(batch_size=1, max_length=1):
+        for descr in self.get_inference_cache_descriptors(batch_size=1, max_length=256):
             self.cache_bytes_per_token[descr.device] += descr.numel() * get_size_in_bytes(descr.dtype)
 
         # Create CPU device list
@@ -126,6 +126,12 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
 
     def get_inference_cache_descriptors(self, batch_size: int, max_length: int) -> Sequence[TensorDescriptor]:
         """Create tensor descriptors for attention cache tensors used during inference_step"""
+        print(f"[DEBUG] Server: get_inference_cache_descriptors called with batch_size={batch_size}, max_length={max_length}")
+        
+        # HARDCODED LIMIT: Cap max_length to prevent large cache allocations
+        max_length = min(max_length, 256)
+        print(f"[DEBUG] Server: max_length capped to {max_length}")
+        
         head_dim = self.config.hidden_size // self.config.num_attention_heads
         cache_tensors = []
         for device, num_heads in zip(self.module.devices, self.shard_num_heads):
@@ -263,7 +269,28 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         batch_size, seq_length, hidden_size = hidden_states.shape
         worst_case_length = inference_info.prefix_length + seq_length
         attn_bytes_per_token = max(self.shard_num_heads) * batch_size * self.dtype_bytes * worst_case_length
-        return max(1, self.max_chunk_size_bytes // attn_bytes_per_token)
+        
+        # Calculate chunk length based on available memory
+        chunk_length = max(1, self.max_chunk_size_bytes // attn_bytes_per_token)
+
+        # Add much more aggressive limits for batch processing to prevent OOM
+        if batch_size > 1:
+            # For batch processing, be extremely conservative with chunk size
+            # This prevents system crashes and improves performance
+            max_reasonable_chunk = min(32, 256 // batch_size)  # Much smaller chunks for batches
+        else:
+            max_reasonable_chunk = 256  # Reduced from 512 for single sequence too
+
+        chunk_length = min(chunk_length, max_reasonable_chunk)
+
+        # Debug print for memory allocation
+        print(f"[DEBUG] _estimate_max_chunk_length: batch_size={batch_size}, max_allocation_bytes={self.max_chunk_size_bytes}, attn_bytes_per_token={attn_bytes_per_token}, chunk_length={chunk_length}, max_reasonable_chunk={max_reasonable_chunk}")
+
+        # Debug logging for memory allocation
+        if batch_size > 1:
+            logger.warning(f"Memory allocation debug - batch_size: {batch_size}, max_allocation_bytes: {self.max_chunk_size_bytes}, attn_bytes_per_token: {attn_bytes_per_token}, chunk_length: {chunk_length}, max_reasonable_chunk: {max_reasonable_chunk}")
+            
+        return chunk_length
 
     def _reorder_cache_inplace(self, cache_tensors: torch.Tensor, hypo_ids: torch.Tensor):
         """If hypo_ids is specified, reorder elements of each cache tensor in-place by taking indices from hypo_ids"""

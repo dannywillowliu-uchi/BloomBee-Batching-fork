@@ -40,6 +40,7 @@ class _ServerInferenceSession:
         outputs_aiter: AsyncIterator,
         *,
         max_length: int,
+        batch_size: int = 1,  # NEW: Support batch size
         **metadata,
     ):
         self.config = config
@@ -48,10 +49,14 @@ class _ServerInferenceSession:
         self._inputs_queue: asyncio.Queue[runtime_pb2.ExpertRequest] = inputs_queue
         self._outputs_stream: AsyncIterator[runtime_pb2.ExpertResponse] = outputs_aiter
         self.session_id = str(uuid.uuid4())
+        # Store metadata with max_length (server needs it) but without batch_size to avoid conflicts
+        # batch_size is stored separately as self._batch_size
+        # max_length is stored separately as self._max_length but also needed in metadata
         self.session_metadata = dict(max_length=max_length, **metadata)
         self.stepped = False
         self.closed = False
 
+        self._batch_size = batch_size  # NEW: Store batch size
         self._position = 0
         self.history = None  # Used in case of server failures to regenerate attention caches on new servers
         self.next_session = None
@@ -64,16 +69,23 @@ class _ServerInferenceSession:
         span: RemoteSpanInfo,
         uid: ModuleUID,
         rpc_info: RPCInfo,
+        batch_size: int = 1,  # NEW: Support batch size
         **metadata,
     ) -> _ServerInferenceSession:
         """Create a new session for a given remote module. This code is meant to be run inside RemoteExpertWorker"""
         stub = TransformerConnectionHandler.get_stub(p2p, span.peer_id)
         inputs_queue = asyncio.Queue()
+        # Extract max_length to avoid duplicate keyword argument
+        max_length = metadata.get("max_length", 1024)
+        # Remove max_length from metadata to avoid duplicate
+        if "max_length" in metadata:
+            del metadata["max_length"]
+        
         outputs_stream = await asyncio.wait_for(
             stub.rpc_inference(cls._read_inputs_from_queue(inputs_queue)),
             config.connect_timeout,
         )
-        return cls(config, span, uid, rpc_info, inputs_queue, outputs_stream, **metadata)
+        return cls(config, span, uid, rpc_info, inputs_queue, outputs_stream, max_length=max_length, batch_size=batch_size, **metadata)
 
     @staticmethod
     async def _read_inputs_from_queue(queue: asyncio.Queue, input_timeout: Optional[float] = None) -> AsyncIterator:
@@ -96,12 +108,14 @@ class _ServerInferenceSession:
 
     def step(
         self,
-        inputs: torch.Tensor,
+        inputs: torch.Tensor,  # Shape: [batch_size, seq_len, hidden_size]
         prompts: torch.Tensor,
         hypo_ids: torch.LongTensor,
         *,
         step_id: str,
     ) -> torch.Tensor:
+        # Validate batch size
+        assert inputs.shape[0] == self._batch_size, f"Expected batch_size {self._batch_size}, got {inputs.shape[0]}"
         """
         Inference step: send a chunk of input tensors and receive a chunk of outputs
         :prompts: optional DEEP prompts, added to a prefix of each layer's outputs,
@@ -226,12 +240,14 @@ class InferenceSession:
     An interface to a multi-step *inference* session for a sequence of remote transformer blocks
     """
 
-    def __init__(self, sequence_manager: RemoteSequenceManager, max_length: int):
+    def __init__(self, sequence_manager: RemoteSequenceManager, max_length: int, batch_size: int = 1):
+        print(f"[DEBUG] Client: InferenceSession __init__ with max_length={max_length}, batch_size={batch_size}")
         self._sequence_manager = sequence_manager
         self._closed = False
         self._server_sessions = []
         self._position = 0
         self._max_length = max_length
+        self._batch_size = batch_size  # NEW: Support batch size
         self.output_ids = None
         self.past_key_values = None
 
@@ -264,6 +280,7 @@ class InferenceSession:
                         span_uids,
                         rpc_info=self._sequence_manager.rpc_info,
                         max_length=self._max_length,
+                        batch_size=self._batch_size,  # Pass batch size as separate argument
                         **metadata,
                     )
                 )
@@ -287,7 +304,7 @@ class InferenceSession:
 
     def step(   # 执行一次推理步骤，处理输入数据和相应的提示与假设 ID，同时在可能出现错误的情况下进行重试。
         self,
-        inputs: torch.Tensor,
+        inputs: torch.Tensor,  # Shape: [batch_size, seq_len, hidden_size]
         prompts: Optional[torch.Tensor] = None,
         hypo_ids: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:

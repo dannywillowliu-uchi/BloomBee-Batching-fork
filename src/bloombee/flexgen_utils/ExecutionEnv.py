@@ -22,8 +22,12 @@ class ExecutionEnv:
 
     @classmethod
     def create(cls, offload_dir):
-        gpu = TorchDevice("cuda:0")
-        print('ExecutionEnv: gpu ', gpu)
+        if torch.cuda.is_available():
+            gpu = TorchDevice("cuda:0")
+            print('ExecutionEnv: gpu ', gpu)
+        else:
+            gpu = TorchDevice("cpu")  # Use CPU as GPU fallback
+            print('ExecutionEnv: gpu (CPU fallback) ', gpu)
         cpu = TorchDevice("cpu")
         disk = TorchDisk(offload_dir)
         return cls(gpu=gpu, cpu=cpu, disk=disk, mixed=TorchMixedDevice([gpu, cpu, disk]))

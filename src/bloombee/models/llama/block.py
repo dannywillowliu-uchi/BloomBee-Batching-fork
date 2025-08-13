@@ -306,10 +306,16 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         else:
             raise NotImplementedError()
         # see_memory_usage("-----------------------------------------before cuda stream init ")
-        # CUDA streams
-        self.load_weight_stream = torch.cuda.Stream()
-        self.load_cache_stream = torch.cuda.Stream()
-        self.store_cache_stream = torch.cuda.Stream()
+        # CUDA streams - only create if CUDA is available
+        if torch.cuda.is_available():
+            self.load_weight_stream = torch.cuda.Stream()
+            self.load_cache_stream = torch.cuda.Stream()
+            self.store_cache_stream = torch.cuda.Stream()
+        else:
+            # Create dummy streams for CPU-only operation
+            self.load_weight_stream = None
+            self.load_cache_stream = None
+            self.store_cache_stream = None
         
         num_layers, num_gpu_batches = self.num_layers, self.policy.num_gpu_batches
         # cache[j][k]
@@ -665,7 +671,7 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
             if i == self.execute_gen_len:
                 return
         # Load from weight_home to weight_read_buf
-        if overlap:
+        if overlap and self.load_weight_stream is not None:
             with torch.cuda.stream(self.load_weight_stream):
                 self.layers[j].load_weight(self.weight_home[j], self.weight_read_buf[j], k)
         else:
@@ -696,7 +702,7 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
             if i == self.execute_gen_len:
                 return
         # Load from cache_home to cache_read_buf
-        if overlap:
+        if overlap and self.load_cache_stream is not None:
             with torch.cuda.stream(self.load_cache_stream):
                 self.layers[j].load_cache(self.cache_home[j][k], self.cache_read_buf[j][k], i)
         else:
@@ -718,7 +724,7 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
 
         # Store cache_write_buf to cache_home
         # Delete cache_write_buf
-        if overlap:
+        if overlap and self.store_cache_stream is not None:
             with torch.cuda.stream(self.store_cache_stream):
                 self.layers[j].store_cache(self.cache_home[j][k], self.cache_write_buf[j][k], i)
         else:
