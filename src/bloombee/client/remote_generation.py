@@ -203,26 +203,49 @@ class RemoteGenerationMixin(_SkipTokensMixin):
 
     def _generate_batch_internal(self, batch_inputs: torch.Tensor, *args, **kwargs):
         """Internal method for batch generation"""
-        # Convert token IDs to embeddings
-        batch_embeddings = self.transformer.embed_tokens(batch_inputs)
+        max_new_tokens = kwargs.get("max_new_tokens", 5)
+        do_sample = kwargs.get("do_sample", False)
+        temperature = kwargs.get("temperature", 1.0)
         
-        # Process through transformer with batch session
-        outputs = self.transformer(
-            inputs_embeds=batch_embeddings,
-            batch_mode=True,  # NEW: Enable batch mode
-        )
+        print(f"[DEBUG] _generate_batch_internal: batch_inputs shape={batch_inputs.shape}, max_new_tokens={max_new_tokens}")
         
-        # Get logits and generate tokens
-        logits = self.lm_head(outputs.last_hidden_state)
+        # Start with input tokens
+        current_ids = batch_inputs.clone()
         
-        # Apply generation logic (temperature, sampling, etc.)
-        # For now, use simple greedy decoding
-        next_tokens = torch.argmax(logits[:, -1:, :], dim=-1)
+        # Generate tokens autoregressively
+        for step in range(max_new_tokens):
+            print(f"[DEBUG] Generating token {step + 1}/{max_new_tokens}")
+            
+            # Convert token IDs to embeddings
+            batch_embeddings = self.transformer.embed_tokens(current_ids)
+            
+            # Process through transformer with batch session
+            outputs = self.transformer(
+                inputs_embeds=batch_embeddings,
+                batch_mode=True,  # NEW: Enable batch mode
+            )
+            
+            # Get logits and generate next token
+            logits = self.lm_head(outputs.last_hidden_state)
+            next_token_logits = logits[:, -1:, :]  # [batch_size, 1, vocab_size]
+            
+            if do_sample:
+                # Apply temperature and sample
+                next_token_logits = next_token_logits / temperature
+                probs = torch.softmax(next_token_logits, dim=-1)
+                next_tokens = torch.multinomial(probs.view(-1, probs.shape[-1]), num_samples=1).view(batch_inputs.shape[0], 1, 1)
+            else:
+                # Greedy decoding
+                next_tokens = torch.argmax(next_token_logits, dim=-1, keepdim=True)
+            
+            print(f"[DEBUG] Next tokens shape: {next_tokens.shape}, values: {next_tokens.flatten()}")
+            
+            # Concatenate new token
+            current_ids = torch.cat([current_ids, next_tokens], dim=-1)
+            print(f"[DEBUG] Current IDs shape after step {step + 1}: {current_ids.shape}")
         
-        # Concatenate with input
-        generated_tokens = torch.cat([batch_inputs, next_tokens], dim=-1)
-        
-        return generated_tokens  # Shape: [batch_size, final_seq_length]
+        print(f"[DEBUG] Final output shape: {current_ids.shape}")
+        return current_ids  # Shape: [batch_size, final_seq_length]
 
     @staticmethod
     def _fix_generate_kwargs(kwargs: dict):
