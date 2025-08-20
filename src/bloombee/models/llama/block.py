@@ -305,7 +305,7 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
             self.act_home = self.env.disk
         else:
             raise NotImplementedError()
-        # see_memory_usage("-----------------------------------------before cuda stream init ")
+        
         # CUDA streams - only create if CUDA is available
         if torch.cuda.is_available():
             self.load_weight_stream = torch.cuda.Stream()
@@ -339,8 +339,6 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         # see_memory_usage("-----------------------------------------before init_all_weights ")
         # Initialize weights and apply final processing
         self.init_all_weights() #-------------------------************
-        # print('OptimizedLlamaDecoderLayer self.config', self.config)
-        # see_memory_usage("-----------------------------------------after init_all_weights ")
         
         self.temp_hidden = ValueHolder() ######
         
@@ -355,20 +353,16 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
             self.init_weight(j)
             
     def init_weight(self, j):
-        # print('self.llama_config ', self.llama_config)
         # Extract model name from _name_or_path
         model_name = os.path.basename(self.llama_config._name_or_path.rstrip('/'))
         self.llama_config.name = model_name
         expanded_path = os.path.abspath(os.path.expanduser(
             os.path.join(self.path, f"{model_name}-np")))
         check_path = os.path.join(expanded_path, "embed_tokens.weight")
-        # see_memory_usage("----------------------------------before download_llama_weights in init_weights ")
         if not os.path.exists(check_path) and DUMMY_WEIGHT not in check_path:
             download_llama_weights(self.llama_config.name, self.path)
-        # see_memory_usage(str(j)+" layer----------------------------------before self.layers[j].init_weight(self.weight_home[j], expanded_path) ")
         
         self.layers[j].init_weight(self.weight_home[j], expanded_path)
-        # see_memory_usage(str(j)+" layer----------------------------------after self.layers[j].init_weight(self.weight_home[j], expanded_path) ")
         
         
     
@@ -472,7 +466,6 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         # num_prompts = args.num_gpu_batches * args.gpu_batch_size
         num_prompts = 1
         
-        # see_memory_usage("-----------------------------------------before cuda stream init ")
         #  Fix hardcoding: Use dynamic prompt length instead of hardcoded 1
         # prompt_len, gen_len, cut_gen_len = 1,128,128 ##########-------------------------------------
         # Infer prompt_len from actual input hidden_states

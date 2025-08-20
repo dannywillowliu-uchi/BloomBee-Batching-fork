@@ -186,10 +186,13 @@ class TransformerConnectionHandler(ConnectionHandler):
                         f"Cannot allocate KV cache for {max_length} tokens, max = {self.inference_max_length}"
                     )
 
-                # HARDCODED LIMIT: Cap max_length to prevent large cache allocations
-                if max_length is not None:
-                    max_length = min(max_length, 256)
-                    print(f"[DEBUG] Handler: max_length capped to {max_length}")
+                # Removed hardcoded limit - let the system handle larger sequences
+                # if max_length is not None:
+                #     max_length = min(max_length, 256)  # REMOVED: This was preventing proper sequence expansion
+                #     print(f"[DEBUG] Handler: max_length capped to {max_length}")
+                print(f"[DEBUG] Handler: max_length set to {max_length} (no hardcoded cap)")
+                # Note: Current cache supports up to 12 tokens (5 input + 5 output + 2 buffer)
+                # Future: Can scale to 107+ tokens for batch_size=1024, max_new_tokens=100
 
                 batch_size = request.tensors[0].size[0] if request.tensors else 1
                 end_batch_size_time = perf_counter()

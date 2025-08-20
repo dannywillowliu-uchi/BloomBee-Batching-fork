@@ -148,8 +148,6 @@ def torch_mem_stats():
             continue
         visited_data.add(data_ptr)
 
-        print(tensor.shape, tensor.data_ptr())
-
         numel = tensor.numel()
         total_numel += numel
         element_size = tensor.storage().element_size()
@@ -168,10 +166,10 @@ class ValueHolder:
         # self.val = val
         if self.val is None: ####
             self.val = val ######
-            print('valueholder store a val')
+            # print('valueholder store a val') # Removed verbose debug print
         else : ####
             self.val = val ######
-            print('valueholder update new val')
+            # print('valueholder update new val') # Removed verbose debug print
         
 
     def pop(self):

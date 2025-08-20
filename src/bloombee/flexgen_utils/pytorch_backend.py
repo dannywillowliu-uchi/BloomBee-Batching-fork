@@ -1175,12 +1175,40 @@ def map_to_torch_tensor(tensor, indices):
 
 def copy_worker_func(queue, cuda_id):
     """The copy worker thread."""
-    torch.cuda.set_device(cuda_id)
+    if torch.cuda.is_available():
+        torch.cuda.set_device(cuda_id)
+        cpu_buf = torch.empty((1 * GB,), dtype=torch.float16, pin_memory=True)
+        copy_stream = torch.cuda.Stream()
+    else:
+        # CPU-only mode - no CUDA operations
+        cpu_buf = None
+        copy_stream = None
 
-    cpu_buf = torch.empty((1 * GB,), dtype=torch.float16, pin_memory=True)
-    copy_stream = torch.cuda.Stream()
+    if torch.cuda.is_available():
+        with torch.cuda.stream(copy_stream):
+            while True:
+                item = queue.get()
+                if item is None:
+                    queue.task_done()
+                    return
 
-    with torch.cuda.stream(copy_stream):
+                dst, dst_indices, src, src_indices = item
+                src_data = map_to_torch_tensor(src, src_indices)
+                dst_data = map_to_torch_tensor(dst, dst_indices)
+
+                if (src.device.device_type == DeviceType.CUDA or
+                    dst.device.device_type == DeviceType.CUDA):
+                    # Use a pinned cpu buffer as a relay
+                    size = np.prod(src_data.shape)
+                    tmp_cpu_buf = cpu_buf[:size].view(src_data.shape)
+                    tmp_cpu_buf.copy_(src_data)
+                    dst_data.copy_(tmp_cpu_buf)
+                else:
+                    dst_data.copy_(src_data)
+
+                queue.task_done()
+    else:
+        # CPU-only mode - simple copy without CUDA streams
         while True:
             item = queue.get()
             if item is None:
@@ -1190,15 +1218,7 @@ def copy_worker_func(queue, cuda_id):
             dst, dst_indices, src, src_indices = item
             src_data = map_to_torch_tensor(src, src_indices)
             dst_data = map_to_torch_tensor(dst, dst_indices)
-
-            if (src.device.device_type == DeviceType.CUDA or
-                dst.device.device_type == DeviceType.CUDA):
-                # Use a pinned cpu buffer as a relay
-                size = np.prod(src_data.shape)
-                tmp_cpu_buf = cpu_buf[:size].view(src_data.shape)
-                tmp_cpu_buf.copy_(src_data)
-                dst_data.copy_(tmp_cpu_buf)
-            else:
-                dst_data.copy_(src_data)
-
+            
+            # Direct copy for CPU tensors
+            dst_data.copy_(src_data)
             queue.task_done()

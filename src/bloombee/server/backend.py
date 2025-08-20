@@ -128,9 +128,9 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         """Create tensor descriptors for attention cache tensors used during inference_step"""
         print(f"[DEBUG] Server: get_inference_cache_descriptors called with batch_size={batch_size}, max_length={max_length}")
         
-        # HARDCODED LIMIT: Cap max_length to prevent large cache allocations
-        max_length = min(max_length, 256)
-        print(f"[DEBUG] Server: max_length capped to {max_length}")
+        # Remove hardcoded cap - let the system handle larger sequences
+        # max_length = min(max_length, 256)  # REMOVED: This was preventing proper sequence expansion
+        print(f"[DEBUG] Server: max_length set to {max_length} (no hardcoded cap)")
         
         head_dim = self.config.hidden_size // self.config.num_attention_heads
         cache_tensors = []

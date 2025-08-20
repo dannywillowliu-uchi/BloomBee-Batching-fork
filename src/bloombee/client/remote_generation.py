@@ -148,81 +148,74 @@ class RemoteGenerationMixin(_SkipTokensMixin):
 
         return result
 
-    def generate_batch(
-        self, 
-        inputs: Optional[torch.Tensor] = None, 
-        batch_size: int = 1,
-        *args, 
-        session: Optional[InferenceSession] = None, 
-        **kwargs
-    ):
+    def generate_batch(self, inputs: Optional[torch.Tensor] = None, batch_size: int = 1, **kwargs):
         """
-        Generate text for multiple identical inputs using batch processing.
+        Generate text for multiple input sequences in a single batch.
         
         Args:
-            inputs: Input token IDs [1, seq_length] (single input)
-            batch_size: Number of identical inputs to process in parallel
-            *args, **kwargs: Standard generation parameters
-            
+            inputs: Input tensor of shape (batch_size, seq_len)
+            batch_size: Number of sequences to process in parallel
+            **kwargs: Additional generation parameters (max_new_tokens, do_sample, etc.)
+        
         Returns:
-            Generated token IDs [batch_size, final_seq_length]
+            Generated text tensor of shape (batch_size, seq_len + new_tokens)
         """
         if inputs is None:
-            inputs = kwargs.pop("input_ids", None)
+            raise ValueError("Inputs must be provided for batch generation")
         
-        if batch_size <= 1:
-            # Use standard generation for single input
-            return self.generate(inputs, *args, session=session, **kwargs)
-        
-        # Create batch of identical inputs
-        batch_inputs = inputs.expand(batch_size, -1)  # [1, seq_len] -> [batch_size, seq_len]
-        
-        # Create batch session
-        if session is not None:
-            context_manager = self.use_session(session)
-        elif self.active_session is not None:
-            context_manager = contextlib.nullcontext(self.active_session)
-        else:
-            # Create new batch session
-            max_length = kwargs.get("max_length")
-            max_new_tokens = kwargs.get("max_new_tokens")
-            
-            session_max_length = self.transformer.config.pre_seq_len
-            if max_length is not None:
-                session_max_length += max_length
+        # Check if we have an existing session
+        if hasattr(self, '_current_session') and self._current_session is not None:
+            # Use existing session if compatible
+            current_batch_size = getattr(self._current_session, 'batch_size', 1)
+            if current_batch_size == batch_size:
+                print(f"[DEBUG] generate_batch: Using existing session with batch_size={batch_size}")
+                return self._generate_batch_internal(inputs, **kwargs)
             else:
-                session_max_length += (inputs.shape[1] if inputs is not None else 0) + max_new_tokens
-            
-            # Create session with batch_size
-            context_manager = self.inference_session(max_length=session_max_length, batch_size=batch_size)
+                print(f"[DEBUG] generate_batch: Closing incompatible session (current={current_batch_size}, requested={batch_size})")
+                self._current_session.close()
+                self._current_session = None
+        
+        # Create new batch session with proper max_length calculation
+        max_length = kwargs.get("max_length")
+        max_new_tokens = kwargs.get("max_new_tokens")
+        
+        # Ensure we have either max_length or max_new_tokens
+        assert (max_length is None) != (max_new_tokens is None), \
+            "You should set `max_length` or `max_new_tokens` (but not both) to reserve server-side attention caches"
+        
+        # Calculate session max length
+        session_max_length = self.transformer.config.pre_seq_len
+        if max_length is not None:
+            session_max_length += max_length
+        else:
+            # For max_new_tokens, we need to account for input length + new tokens
+            input_length = inputs.shape[1] if inputs is not None else 0
+            session_max_length += input_length + max_new_tokens
+        
+        print(f"[DEBUG] generate_batch: Creating session with max_length={session_max_length}")
+        print(f"[DEBUG] generate_batch: pre_seq_len={self.transformer.config.pre_seq_len}, input_length={inputs.shape[1] if inputs is not None else 0}, max_new_tokens={max_new_tokens}")
+        
+        # Create session with batch_size and calculated max_length
+        context_manager = self.inference_session(max_length=session_max_length, batch_size=batch_size)
         
         with context_manager as session:
-            # Use batch generation
-            result = self._generate_batch_internal(batch_inputs, *args, **kwargs)
-            return result
-
+            self._current_session = session
+            return self._generate_batch_internal(inputs, **kwargs)
+    
     def _generate_batch_internal(self, batch_inputs: torch.Tensor, *args, **kwargs):
-        """Internal method for batch generation"""
-        # Convert token IDs to embeddings
-        batch_embeddings = self.transformer.embed_tokens(batch_inputs)
+        """Internal method for batch generation using the existing generation infrastructure"""
+        # For batch generation, we need to process each sequence in the batch
+        # The RemoteSequential will handle the distributed processing automatically
         
-        # Process through transformer with batch session
-        outputs = self.transformer(
-            inputs_embeds=batch_embeddings,
-            batch_mode=True,  # NEW: Enable batch mode
+        # Use the existing generate method which handles all the complexity
+        # including proper attention caching, position IDs, etc.
+        outputs = self.generate(
+            input_ids=batch_inputs,
+            *args,
+            **kwargs
         )
         
-        # Get logits and generate tokens
-        logits = self.lm_head(outputs.last_hidden_state)
-        
-        # Apply generation logic (temperature, sampling, etc.)
-        # For now, use simple greedy decoding
-        next_tokens = torch.argmax(logits[:, -1:, :], dim=-1)
-        
-        # Concatenate with input
-        generated_tokens = torch.cat([batch_inputs, next_tokens], dim=-1)
-        
-        return generated_tokens  # Shape: [batch_size, final_seq_length]
+        return outputs
 
     @staticmethod
     def _fix_generate_kwargs(kwargs: dict):
