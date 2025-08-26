@@ -257,20 +257,20 @@ class Server:
 
         ##############################################################
         self.env = ExecutionEnv.create("~./flexgen_offload_dir") ##########
-        # Optimized Policy configuration for M3 MacBook Pro - Full Local Model
-        self.policy = Policy(1, 1,       #  gpu_batch_size: int, num_gpu_batches: int
-                    30, 70,              # w_gpu_percent: float, w_cpu_percent: float - More CPU for full model
-                    20, 80,              # cache_gpu_percent: float, cache_cpu_percent: float - Mostly CPU cache
-                    20, 80,              # act_gpu_percent: float, act_cpu_percent: float - Mostly CPU activations
+        # Optimized Policy configuration for Ryzen 7600X + 8GB VRAM + 32GB RAM
+        self.policy = Policy(2, 2,       #  gpu_batch_size: int, num_gpu_batches: int - Higher batch size for GPU
+                    60, 40,              # w_gpu_percent: float, w_cpu_percent: float - More GPU for performance
+                    40, 60,              # cache_gpu_percent: float, cache_cpu_percent: float - Balanced GPU/CPU cache
+                    50, 50,              # act_gpu_percent: float, act_cpu_percent: float - Balanced GPU/CPU activations
                     overlap=True, sep_layer=True, pin_weight=True,  # Enable I/O overlap for better performance
-                    cpu_cache_compute=True, attn_sparsity=0.7,     # Compute attention on CPU, use 70% sparsity
+                    cpu_cache_compute=False, attn_sparsity=0.9,    # Use GPU for attention, 90% sparsity
                     compress_weight=True,  # Enable weight compression for memory savings
                     comp_weight_config=CompressionConfig(
-                        num_bits=2, group_size=64,  # ← 2-bit compression for maximum savings
+                        num_bits=4, group_size=64,  # ← 4-bit compression (good balance)
                         group_dim=0, symmetric=False),
                     compress_cache=True,   # Enable cache compression for memory savings
                     comp_cache_config=CompressionConfig(
-                        num_bits=2, group_size=64,  # ← 2-bit compression for maximum savings
+                        num_bits=4, group_size=64,  # ← 4-bit compression (good balance)
                         group_dim=2, symmetric=False))
         self.weight_home = array_1d(self.num_blocks, ValueHolder)
         self.path = '/tmp/data/llama_weights'
