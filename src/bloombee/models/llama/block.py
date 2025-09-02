@@ -355,7 +355,13 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
     def init_weight(self, j):
         # Extract model name from _name_or_path
         print(f"DEBUG: _name_or_path = '{self.llama_config._name_or_path}'")
-        model_name = os.path.basename(self.llama_config._name_or_path.rstrip('/'))
+        
+        # For TinyLlama, use the full path; for others, use basename
+        if "tinyllama" in self.llama_config._name_or_path.lower():
+            model_name = self.llama_config._name_or_path  # Use full path for TinyLlama
+        else:
+            model_name = os.path.basename(self.llama_config._name_or_path.rstrip('/'))
+        
         print(f"DEBUG: extracted model_name = '{model_name}'")
         self.llama_config.name = model_name
         expanded_path = os.path.abspath(os.path.expanduser(
