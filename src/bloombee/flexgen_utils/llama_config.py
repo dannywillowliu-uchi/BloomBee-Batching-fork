@@ -148,6 +148,8 @@ def download_llama_weights(model_name, path):
           f"If it seems to get stuck, you can monitor the progress by "
           f"checking the memory usage of this process.")
     
+    print(f"DEBUG: model_name = '{model_name}', type = {type(model_name)}")
+    
     # Handle different model naming conventions
     if "tinyllama" in model_name.lower():
         hf_model_name = model_name  # TinyLlama uses full path like "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
@@ -155,6 +157,8 @@ def download_llama_weights(model_name, path):
         hf_model_name = "huggyllama/" + model_name
     else:
         hf_model_name = model_name  # Fallback to original name
+    
+    print(f"DEBUG: hf_model_name = '{hf_model_name}'")
 
     folder = snapshot_download(hf_model_name, allow_patterns="*.bin")
     bin_files = glob.glob(os.path.join(folder, "*.bin"))

@@ -68,6 +68,10 @@ def load_pretrained_block(
     if cache_dir is None:
         cache_dir = DEFAULT_CACHE_DIR
     
+    # Ensure the config has the model name for weight downloading
+    if not hasattr(config, '_name_or_path') or not config._name_or_path:
+        config._name_or_path = model_name
+    
     assert torch_dtype in DTYPE_MAP.values(), f"torch_dtype must be one of {list(DTYPE_MAP.values())}"
     torch_dtype = resolve_block_dtype(config, torch_dtype)
     
