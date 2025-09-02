@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 
 
 class DistributedLlamaConfig(LlamaConfig, ClientConfig, PTuneConfig, LMHeadConfig):
+    model_type = "tinyllama"
     block_class = WrappedLlamaBlock
     attn_class = LlamaAttention
     block_prefix = "model.layers"
