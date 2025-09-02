@@ -29,7 +29,7 @@ from bloombee.utils.auto_config import AutoDistributedConfig
 from bloombee.utils.disk_cache import DEFAULT_CACHE_DIR, allow_cache_reads, allow_cache_writes, free_disk_space_for
 from bloombee.utils.hf_auth import always_needs_auth
 
-from bloombee.flexgen_utils.llama_config import LlamaConfig, get_llama_config, download_llama_weights
+# Dynamic import based on model type - will be imported when needed
 from bloombee.flexgen_utils.ExecutionEnv import ExecutionEnv
 from bloombee.flexgen_utils.compression import CompressionConfig
 from bloombee.flexgen_utils.policy import Policy

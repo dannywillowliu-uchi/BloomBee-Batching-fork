@@ -46,8 +46,10 @@ class DistributedLlamaConfig(LlamaConfig, ClientConfig, PTuneConfig, LMHeadConfi
         
         # Force TinyLlama models to use our TinyLlama implementation
         if "tinyllama" in str(model_name_or_path).lower():
+            original_model_type = config.model_type
             config.model_type = "tinyllama"
-            logger.info(f"Overriding model_type to 'tinyllama' for {model_name_or_path}")
+            logger.info(f"Overriding model_type from '{original_model_type}' to 'tinyllama' for {model_name_or_path}")
+            logger.info(f"Config model_type is now: {config.model_type}")
         
         config.pretraining_tp = 1  # This may give less accurate results but it doesn't matter if we use quantization
         config.use_cache = True  # use_cache=False leads to identical results but is slower and not supported by Petals
