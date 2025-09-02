@@ -163,9 +163,18 @@ def download_llama_weights(model_name, path):
     folder = snapshot_download(hf_model_name, allow_patterns="*.bin")
     bin_files = glob.glob(os.path.join(folder, "*.bin"))
 
-    if "/" in model_name:
-        model_name = model_name.split("/")[1].lower()
-    path = os.path.join(path, f"{model_name}-np")
+    # For TinyLlama, keep the full path; for others, use basename
+    if "tinyllama" in model_name.lower():
+        # Keep the full path for TinyLlama
+        path_model_name = model_name.replace("/", "-").lower()
+    else:
+        # Use basename for regular Llama models
+        if "/" in model_name:
+            path_model_name = model_name.split("/")[1].lower()
+        else:
+            path_model_name = model_name.lower()
+    
+    path = os.path.join(path, f"{path_model_name}-np")
     path = os.path.abspath(os.path.expanduser(path))
     os.makedirs(path, exist_ok=True)
 
