@@ -64,7 +64,15 @@ def load_pretrained_block(
     max_disk_space: Optional[int] = None,
 ) -> nn.Module:
     if config is None:
-        config = AutoDistributedConfig.from_pretrained(model_name, use_auth_token=token)
+        # Force TinyLlama models to use TinyLlama-specific config
+        if "tinyllama" in model_name.lower():
+            print(f"DEBUG: Loading TinyLlama config for {model_name}")
+            from bloombee.models.tinyllama.config import DistributedLlamaConfig
+            config = DistributedLlamaConfig.from_pretrained(model_name, use_auth_token=token)
+            print(f"DEBUG: TinyLlama config loaded: {config}")
+        else:
+            print(f"DEBUG: Loading regular config for {model_name}")
+            config = AutoDistributedConfig.from_pretrained(model_name, use_auth_token=token)
     if cache_dir is None:
         cache_dir = DEFAULT_CACHE_DIR
     
@@ -77,6 +85,9 @@ def load_pretrained_block(
     
     with init_empty_weights():
         print('load_pretrained_block : init_empty_weights() ') 
+        print(f'DEBUG: config.model_type = {config.model_type}')
+        print(f'DEBUG: config.block_class = {config.block_class}')
+        print(f'DEBUG: config.hidden_size = {config.hidden_size}')
         block = get_model_block(config, env, policy, weight_home, path, layer_idx=block_index)
     
     block_prefix = f"{config.block_prefix}.{block_index}."

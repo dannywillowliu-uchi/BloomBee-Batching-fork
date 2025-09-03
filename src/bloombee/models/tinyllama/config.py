@@ -50,6 +50,21 @@ class DistributedLlamaConfig(LlamaConfig, ClientConfig, PTuneConfig, LMHeadConfi
             config.model_type = "tinyllama"
             logger.info(f"Overriding model_type from '{original_model_type}' to 'tinyllama' for {model_name_or_path}")
             logger.info(f"Config model_type is now: {config.model_type}")
+            
+            # Override TinyLlama-specific dimensions
+            config.hidden_size = 2048
+            config.num_hidden_layers = 22
+            config.num_attention_heads = 32
+            config.num_key_value_heads = 4
+            config.intermediate_size = 5632
+            config.vocab_size = 32000
+            config.max_position_embeddings = 2048
+            logger.info(f"Set TinyLlama dimensions: hidden_size={config.hidden_size}, num_hidden_layers={config.num_hidden_layers}, num_attention_heads={config.num_attention_heads}")
+            
+            # Force the block_class to use TinyLlama block class
+            from bloombee.models.tinyllama.block import WrappedLlamaBlock
+            config.block_class = WrappedLlamaBlock
+            logger.info(f"Set block_class to: {config.block_class}")
         
         config.pretraining_tp = 1  # This may give less accurate results but it doesn't matter if we use quantization
         config.use_cache = True  # use_cache=False leads to identical results but is slower and not supported by Petals

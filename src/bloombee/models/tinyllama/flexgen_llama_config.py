@@ -159,8 +159,10 @@ def download_llama_weights(model_name, path):
     else:
         hf_model_name = model_name  # Fallback to original name
 
-    folder = snapshot_download(hf_model_name, allow_patterns="*.bin")
+    # Download both .bin and .safetensors files (TinyLlama uses safetensors)
+    folder = snapshot_download(hf_model_name, allow_patterns=["*.bin", "*.safetensors"])
     bin_files = glob.glob(os.path.join(folder, "*.bin"))
+    safetensors_files = glob.glob(os.path.join(folder, "*.safetensors"))
 
     if "/" in model_name:
         model_name = model_name.split("/")[1].lower()
@@ -168,7 +170,8 @@ def download_llama_weights(model_name, path):
     path = os.path.abspath(os.path.expanduser(path))
     os.makedirs(path, exist_ok=True)
 
-    for bin_file in tqdm(bin_files, desc="Convert format"):
+    # Process .bin files
+    for bin_file in tqdm(bin_files, desc="Convert .bin format"):
         state = torch.load(bin_file)
         for name, param in tqdm(state.items(), leave=False):
             name = name.replace("model.", "")
@@ -176,6 +179,23 @@ def download_llama_weights(model_name, path):
             param_path = os.path.join(path, name)
             with open(param_path, "wb") as f:
                 np.save(f, param.cpu().detach().numpy())
+    
+    # Process .safetensors files (for TinyLlama)
+    if safetensors_files:
+        from safetensors import safe_open
+        for safetensors_file in tqdm(safetensors_files, desc="Convert .safetensors format"):
+            with safe_open(safetensors_file, framework="pt", device="cpu") as f:
+                for name in f.keys():
+                    param = f.get_tensor(name)
+                    # Convert BFloat16 to Float32 for numpy compatibility
+                    if param.dtype == torch.bfloat16:
+                        param = param.float()
+                    # Convert safetensors name to expected format
+                    converted_name = name.replace("model.", "")
+                    converted_name = converted_name.replace("final_layer_norm", "layer_norm")
+                    param_path = os.path.join(path, converted_name)
+                    with open(param_path, "wb") as f_out:
+                        np.save(f_out, param.cpu().detach().numpy())
 
 
 if __name__ == "__main__":

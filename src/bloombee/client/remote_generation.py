@@ -166,7 +166,7 @@ class RemoteGenerationMixin(_SkipTokensMixin):
         # Check if we have an existing session
         if hasattr(self, '_current_session') and self._current_session is not None:
             # Use existing session if compatible
-            current_batch_size = getattr(self._current_session, 'batch_size', 1)
+            current_batch_size = getattr(self._current_session, '_batch_size', 1)
             if current_batch_size == batch_size:
                 print(f"[DEBUG] generate_batch: Using existing session with batch_size={batch_size}")
                 return self._generate_batch_internal(inputs, **kwargs)

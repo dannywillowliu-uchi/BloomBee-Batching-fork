@@ -131,11 +131,20 @@ class Server:
         if custom_module_path is not None:
             add_custom_models_from_file(custom_module_path)
 
-        self.block_config = AutoDistributedConfig.from_pretrained(
-            converted_model_name_or_path,
-            use_auth_token=token,
-            revision=revision,
-        )
+        # Force TinyLlama models to use TinyLlama-specific config
+        if "tinyllama" in converted_model_name_or_path.lower():
+            from bloombee.models.tinyllama.config import DistributedLlamaConfig
+            self.block_config = DistributedLlamaConfig.from_pretrained(
+                converted_model_name_or_path,
+                use_auth_token=token,
+                revision=revision,
+            )
+        else:
+            self.block_config = AutoDistributedConfig.from_pretrained(
+                converted_model_name_or_path,
+                use_auth_token=token,
+                revision=revision,
+            )
 
         if dht_prefix is None:
             dht_prefix = self.block_config.dht_prefix

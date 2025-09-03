@@ -356,9 +356,9 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         # Extract model name from _name_or_path
         print(f"DEBUG: _name_or_path = '{self.llama_config._name_or_path}'")
         
-        # For TinyLlama, use the full path; for others, use basename
+        # For TinyLlama, use the same path construction as download_llama_weights
         if "tinyllama" in self.llama_config._name_or_path.lower():
-            model_name = self.llama_config._name_or_path  # Use full path for TinyLlama
+            model_name = self.llama_config._name_or_path.replace("/", "-").lower()
         else:
             model_name = os.path.basename(self.llama_config._name_or_path.rstrip('/'))
         
@@ -368,7 +368,8 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
             os.path.join(self.path, f"{model_name}-np")))
         check_path = os.path.join(expanded_path, "embed_tokens.weight")
         if not os.path.exists(check_path) and DUMMY_WEIGHT not in check_path:
-            download_llama_weights(self.llama_config.name, self.path)
+            # Use the full HuggingFace repository ID for downloading weights
+            download_llama_weights(self.llama_config._name_or_path, self.path)
         
         self.layers[j].init_weight(self.weight_home[j], expanded_path)
         

@@ -408,21 +408,24 @@ class FLEX_LlamaAttention(LlamaAttention):
 
     def init_weight(self, weight_home, path):
         h, dtype = (self.config.hidden_size, np.float16)
+        # For GQA models, key and value projections have fewer heads
+        num_key_value_heads = getattr(self.config, 'num_key_value_heads', self.config.num_attention_heads)
+        head_dim = h // self.config.num_attention_heads
+        kv_dim = num_key_value_heads * head_dim
+        
         path = os.path.join(os.path.join(path, f"layers.{self.layer_id}."))
         weight_specs = [
             # 5 weight files
             # w_q
             ((h, h), dtype, path + "self_attn.q_proj.weight"),
-            # w_k
-            ((h, h), dtype, path + "self_attn.k_proj.weight"),
-            # w_v
-            ((h, h), dtype, path + "self_attn.v_proj.weight"),
+            # w_k (GQA: fewer heads)
+            ((kv_dim, h), dtype, path + "self_attn.k_proj.weight"),
+            # w_v (GQA: fewer heads)
+            ((kv_dim, h), dtype, path + "self_attn.v_proj.weight"),
             # w_out
             ((h, h), dtype, path + "self_attn.o_proj.weight"),
             # input layer norm
             ((h, ), dtype, path + "input_layernorm.weight"),
-            # rotary_embed
-            ((64, ), dtype, path + "self_attn.rotary_emb.inv_freq"),
         ]
         # see_memory_usage("-----------------------------------------before init weights of LLamaAttention ")
         weights = init_weight_list(weight_specs, self.policy, self.env)
@@ -430,7 +433,7 @@ class FLEX_LlamaAttention(LlamaAttention):
         weight_home.store(weights)
 
     def load_weight(self, weight_home, weight_read_buf, k):
-        w_q, w_k, w_v, w_out, input_layernorm, rotary_emb_inv_freq = weight_home.val
+        w_q, w_k, w_v, w_out, input_layernorm = weight_home.val
         if k == 0:
             dst1 = self.weight_load_dst
             dst2 = self.compute
@@ -440,7 +443,6 @@ class FLEX_LlamaAttention(LlamaAttention):
                 w_v.smart_copy(dst1),
                 w_out.smart_copy(dst1),
                 input_layernorm.smart_copy(dst2),
-                rotary_emb_inv_freq.smart_copy(dst2),
             ))
             
     def init_cache_one_gpu_batch(self, cache_home):
@@ -570,10 +572,10 @@ class FLEX_LlamaAttention(LlamaAttention):
         # k is batch index
         if k == self.policy.num_gpu_batches - 1:
             # Clear the weight_read_buf if it is the last gpu batch
-            ((w_q, donate[2]), (w_k, donate[4]), (w_v, donate[6]), (w_out, donate[8]), (input_layernorm, donate[10]), (rotary_emb_inv_freq, donate[12])) \
+            ((w_q, donate[2]), (w_k, donate[4]), (w_v, donate[6]), (w_out, donate[8]), (input_layernorm, donate[10])) \
                 = weight_read_buf.pop()
         else:
-            ((w_q, _), (w_k, _),  (w_v, _), (w_out, _), (input_layernorm, _), (rotary_emb_inv_freq, _)) = weight_read_buf.val
+            ((w_q, _), (w_k, _),  (w_v, _), (w_out, _), (input_layernorm, _)) = weight_read_buf.val
 
         if i == 0:
             # prefill
@@ -581,7 +583,7 @@ class FLEX_LlamaAttention(LlamaAttention):
             # see_memory_usage("-----------------------------------------before mha_llama ")
             mask, donate[1] = attention_mask.val.smart_copy(self.compute)
             h, new_k_cache, new_v_cache = self.compute.mha_llama(h, mask, w_q, w_k, w_v, w_out,
-                                       num_attention_heads, donate, self.policy.compress_cache, self.policy.comp_cache_config, input_layernorm, rotary_emb_inv_freq)
+                                       num_attention_heads, donate, self.policy.compress_cache, self.policy.comp_cache_config, input_layernorm)
             cache_write_buf.store((new_k_cache, new_v_cache))
             # see_memory_usage("-----------------------------------------after mha_llama ")
         else:
@@ -594,8 +596,7 @@ class FLEX_LlamaAttention(LlamaAttention):
                 w_k, w_v, w_out, num_attention_heads,
                 k_cache, v_cache, donate, self.policy.attn_sparsity,
                 self.policy.compress_cache, self.policy.comp_cache_config,
-                input_layernorm,
-                rotary_emb_inv_freq)
+                input_layernorm)
             cache_write_buf.store((new_k_cache, new_v_cache))
             # see_memory_usage("-----------------------------------------after mha_gen_llama ")
         hidden.val = h
