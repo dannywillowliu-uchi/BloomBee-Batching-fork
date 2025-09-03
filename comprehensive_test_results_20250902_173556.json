@@ -1,0 +1,51 @@
+{
+  "test_info": {
+    "timestamp": "20250902_173556",
+    "total_tests": 3,
+    "successful_tests": 3,
+    "failed_tests": 0,
+    "start_memory_gb": 4.0179443359375,
+    "final_memory_gb": 3.453460693359375
+  },
+  "results": {
+    "input_8_batch_1_gen_10": {
+      "input_length": 8,
+      "batch_size": 1,
+      "max_new_tokens": 10,
+      "generation_time": 4.362793922424316,
+      "total_tokens": 18,
+      "tokens_per_second": 4.125796523984741,
+      "memory_before_gb": 4.04144287109375,
+      "memory_after_gb": 4.01141357421875,
+      "memory_used_gb": 0.030029296875,
+      "sample_text": "Hello, how are you today?----+schnitt chiesterolslagenitantsittelmanagedih",
+      "success": true
+    },
+    "input_8_batch_1_gen_50": {
+      "input_length": 8,
+      "batch_size": 1,
+      "max_new_tokens": 50,
+      "generation_time": 1.0361762046813965,
+      "total_tokens": 58,
+      "tokens_per_second": 55.97503565316272,
+      "memory_before_gb": 4.008453369140625,
+      "memory_after_gb": 4.0027923583984375,
+      "memory_used_gb": 0.0056610107421875,
+      "sample_text": "Hello, how are you today?----+schnitt chiesterolslagenitantsittelmanagedihsz Ci\u00e2traperei\u85e4 princes\u25c4\u0421\u0420istrzostymenomentumereconditionzelilli\u00e9geidan studies\u6599ahnwalt Abnavigation\ub4dcinkelurasianinandagne tre...",
+      "success": true
+    },
+    "input_8_batch_2_gen_10": {
+      "input_length": 8,
+      "batch_size": 2,
+      "max_new_tokens": 10,
+      "generation_time": 0.3056340217590332,
+      "total_tokens": 36,
+      "tokens_per_second": 117.78793405527013,
+      "memory_before_gb": 4.0131072998046875,
+      "memory_after_gb": 4.0005645751953125,
+      "memory_used_gb": 0.012542724609375,
+      "sample_text": "Hello, how are you today?----+schnitt chiesterolslagenitantsittelmanagedih",
+      "success": true
+    }
+  }
+}
