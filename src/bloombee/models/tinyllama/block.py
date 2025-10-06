@@ -30,8 +30,8 @@ from bloombee.flexgen_utils.compression import CompressionConfig
 from bloombee.flexgen_utils.policy import Policy
 from bloombee.flexgen_utils.pytorch_backend import fix_recursive_import, TorchTensor, TorchDevice
 from bloombee.flexgen_utils.utils import ValueHolder, array_1d, array_2d, array_3d
-from bloombee.models.llama.flex_llama import FLEX_LlamaAttention, FLEX_LlamaMLP, LlamaDecoderLayer, DUMMY_WEIGHT
-from bloombee.flexgen_utils.llama_config import get_llama_config, download_llama_weights
+from bloombee.models.tinyllama.flex_llama import FLEX_LlamaAttention, FLEX_LlamaMLP, LlamaDecoderLayer, DUMMY_WEIGHT
+from bloombee.models.tinyllama.flexgen_llama_config import get_llama_config, download_llama_weights
 from bloombee.flexgen_utils.task import Task
 from transformers import AutoTokenizer
 import os
@@ -354,11 +354,9 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
             
     def init_weight(self, j):
         # Extract model name from _name_or_path
-        print(f"DEBUG: _name_or_path = '{self.llama_config._name_or_path}'")
-        
-        # For TinyLlama, use the same path construction as download_llama_weights
         if "tinyllama" in self.llama_config._name_or_path.lower():
-            model_name = self.llama_config._name_or_path.replace("/", "-").lower()
+            # For TinyLlama, use the model name without the repository prefix
+            model_name = "tinyllama-1.1b-chat-v1.0"
         else:
             model_name = os.path.basename(self.llama_config._name_or_path.rstrip('/'))
         
@@ -468,7 +466,7 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         
         # Performance optimization: Use cached tokenizer, avoid repeated creation
         if self._cached_tokenizer is None:
-            self._cached_tokenizer = AutoTokenizer.from_pretrained(f"huggyllama/{self.llama_config.name}", padding_side="left", legacy=False)
+            self._cached_tokenizer = AutoTokenizer.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0", padding_side="left", legacy=False)
             self._cached_tokenizer.pad_token = '[PAD]'
         tokenizer = self._cached_tokenizer
         
