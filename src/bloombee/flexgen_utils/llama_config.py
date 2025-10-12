@@ -153,10 +153,11 @@ def download_llama_weights(model_name, path):
     # Handle different model naming conventions
     if "tinyllama" in model_name.lower():
         hf_model_name = model_name  # TinyLlama uses full path like "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-    elif "llama" in model_name.lower():
+    elif "llama" in model_name.lower() and "/" not in model_name:
+        # Only add huggyllama/ prefix if it's not already there
         hf_model_name = "huggyllama/" + model_name
     else:
-        hf_model_name = model_name  # Fallback to original name
+        hf_model_name = model_name  # Fallback to original name (already has namespace)
     
     print(f"DEBUG: hf_model_name = '{hf_model_name}'")
 

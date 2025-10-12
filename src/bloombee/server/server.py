@@ -265,7 +265,7 @@ class Server:
         logger.info(f"Attention cache for all blocks will consume up to {self.attn_cache_bytes / gib:.2f} GiB")
 
         ##############################################################
-        self.env = ExecutionEnv.create("~./flexgen_offload_dir") ##########
+        self.env = ExecutionEnv.create("~./flexgen_offload_dir", str(self.device)) ##########
         self.policy = Policy(1, 1,       #  gpu_batch_size: int, num_gpu_batches: int
                     100, 0,              # w_gpu_percent: float, w_cpu_percent: float
                     0, 100,             # cache_gpu_percent: float, cache_cpu_percent: float
@@ -797,7 +797,7 @@ class ModuleAnnouncerThread(threading.Thread):
         while True:
             start_time = time.perf_counter()
 
-            self.server_info.cache_tokens_left = self.memory_cache.bytes_left // self.bytes_per_token
+            self.server_info.cache_tokens_left = self.memory_cache.tokens_left
             if self.server_info.state != ServerState.OFFLINE:
                 self._ping_next_servers()
                 self.server_info.next_pings = {

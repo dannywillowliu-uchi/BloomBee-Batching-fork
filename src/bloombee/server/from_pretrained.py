@@ -77,8 +77,8 @@ def load_pretrained_block(
         cache_dir = DEFAULT_CACHE_DIR
     
     # Ensure the config has the model name for weight downloading
-    if not hasattr(config, '_name_or_path') or not config._name_or_path:
-        config._name_or_path = model_name
+    # Always override _name_or_path with the actual model_name to avoid local path issues
+    config._name_or_path = model_name
     
     assert torch_dtype in DTYPE_MAP.values(), f"torch_dtype must be one of {list(DTYPE_MAP.values())}"
     torch_dtype = resolve_block_dtype(config, torch_dtype)
@@ -452,7 +452,12 @@ def set_module_tensor_to_device(
         if "xpu" in str(device) and not is_xpu_available():
             raise ValueError(f'{device} is not available, you should use device="cpu" instead')
         if value is None:
-            new_value = old_value.to(device)
+            # Handle meta tensor conversion properly
+            if old_value.device == torch.device("meta") and device not in ["meta", torch.device("meta")]:
+                # Use to_empty() for meta tensor conversion
+                new_value = old_value.to_empty(device=device)
+            else:
+                new_value = old_value.to(device)
             if dtype is not None and device in ["meta", torch.device("meta")]:
                 if not str(old_value.dtype).startswith(("torch.uint", "torch.int", "torch.bool")):
                     new_value = new_value.to(dtype)

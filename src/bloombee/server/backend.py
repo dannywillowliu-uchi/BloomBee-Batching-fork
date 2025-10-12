@@ -60,6 +60,47 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         self.config = config
         self.memory_cache = memory_cache
         self.max_chunk_size_bytes = max_chunk_size_bytes
+        
+        # Create KVCacheManager for proper cache management
+        from bloombee.server.memory_cache_manager import KVCacheManager
+        from bloombee.flexgen_utils.policy import Policy
+        from bloombee.flexgen_utils.ExecutionEnv import ExecutionEnv
+        
+        # Create a default policy and environment for KVCacheManager
+        # These should ideally be passed from the server, but we'll create defaults for now
+        from bloombee.flexgen_utils.compression import CompressionConfig
+        
+        policy = Policy(
+            gpu_batch_size=1,
+            num_gpu_batches=1,
+            w_gpu_percent=100,
+            w_cpu_percent=0,
+            cache_gpu_percent=100,  # Use GPU for cache by default
+            cache_cpu_percent=0,
+            act_gpu_percent=100,
+            act_cpu_percent=0,
+            overlap=False,
+            sep_layer=False,
+            pin_weight=False,
+            cpu_cache_compute=False,
+            attn_sparsity=1.0,
+            compress_weight=False,
+            comp_weight_config=CompressionConfig(num_bits=8, group_size=64, group_dim=0, symmetric=True),
+            compress_cache=False,
+            comp_cache_config=CompressionConfig(num_bits=8, group_size=64, group_dim=0, symmetric=True)
+        )
+        
+        # Create ExecutionEnv - this should match the server's env
+        env = ExecutionEnv.create("~./flexgen_offload_dir", "cpu")
+        
+        # Create KVCacheManager
+        self.cache_manager = KVCacheManager(
+            cache_max_size_tokens=memory_cache.max_size_tokens,
+            max_alloc_timeout=memory_cache.max_alloc_timeout or 600,
+            policy=policy,
+            env=env,
+            block_config=config
+        )
 
         for name, param in self.module.named_parameters():
             assert not param.requires_grad, f"Block parameters must not accumulate gradients, but {name} does"
@@ -111,7 +152,11 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         # If module has module_shards, move them to CPU
         if hasattr(self.module, 'module_shards'):
             for shard in self.module.module_shards:
-                shard.to('cpu')
+                # Handle meta tensor conversion properly
+                if any(param.device.type == 'meta' for param in shard.parameters()):
+                    shard.to_empty(device='cpu')
+                else:
+                    shard.to('cpu')
         
         # Set output device to CPU
         if hasattr(self.module, 'output_device_index'):
