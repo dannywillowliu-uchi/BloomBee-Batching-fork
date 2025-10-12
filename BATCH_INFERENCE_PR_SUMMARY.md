@@ -10,11 +10,6 @@ This PR implements comprehensive batch inference support for BloomBee, enabling 
 - **Parallel Processing**: All sequences in a batch are processed simultaneously using `torch.bmm`
 - **Dynamic Batch Sizes**: Support for batch sizes from 1 to 1024+ depending on available memory
 
-### Model Support
-- **TinyLlama**: Full support with GQA (Grouped Query Attention) compatibility
-- **Llama Models**: Compatible with standard Llama architectures
-- **FlexGen Integration**: Seamless integration with FlexGen's memory optimization
-
 ## Implementation Details
 
 ### Client-Side Changes
@@ -82,13 +77,13 @@ class FLEX_LlamaAttention:
 
 | Batch Size | Time (s) | Total Tokens | Throughput (tokens/sec) | Memory Δ (GB) | Status |
 |------------|----------|--------------|------------------------|---------------|---------|
-| 2          | 0.98     | 100          | 102.19                 | 0.00          | ✅      |
-| 4          | 0.98     | 200          | 204.03                 | -0.07         | ✅      |
-| 8          | 1.01     | 400          | 395.77                 | 0.09          | ✅      |
-| 16         | 1.26     | 800          | 637.04                 | -0.01         | ✅      |
-| 32         | 1.75     | 1600         | 912.78                 | -0.05         | ✅      |
-| 64         | 2.70     | 3200         | 1186.51                | -0.02         | ✅      |
-| 128        | 5.12     | 6400         | 1251.15                | -0.08         | ✅      |
+| 2          | 0.98     | 100          | 102.19                 | 0.00          | PASS   |
+| 4          | 0.98     | 200          | 204.03                 | -0.07         | PASS   |
+| 8          | 1.01     | 400          | 395.77                 | 0.09          | PASS   |
+| 16         | 1.26     | 800          | 637.04                 | -0.01         | PASS   |
+| 32         | 1.75     | 1600         | 912.78                 | -0.05         | PASS   |
+| 64         | 2.70     | 3200         | 1186.51                | -0.02         | PASS   |
+| 128        | 5.12     | 6400         | 1251.15                | -0.08         | PASS   |
 
 ### Scaling Efficiency Analysis
 
