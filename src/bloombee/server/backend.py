@@ -229,7 +229,7 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
             assert hidden_states.ndim == 3, "expected hidden states to be 3-dimensional: [batch_size, seq_len, hid_size]" # Ensure hidden states are 3-dimensional
             batch_size, seq_len, hidden_size = hidden_states.shape
             print("transformer backend inference step : seq_len", seq_len)
-            print(f"🔧 Backend inference_step: batch_size={batch_size}, seq_len={seq_len}, prefix_length={inference_info.prefix_length}")
+            print(f"Backend inference_step: batch_size={batch_size}, seq_len={seq_len}, prefix_length={inference_info.prefix_length}")
             # see_memory_usage("transformer backend inference step : seq_len")
             
             
@@ -297,7 +297,7 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
                         output_hidden_states = output_hidden_states_chunk  # saves one memcopy # Copy memory only once
                     layer_past = new_kvs # Update cache state
 
-                # 🔧 Fixed: Restore cache update logic  
+                # Fixed: Restore cache update logic  
                 self._update_cache_inplace(cache_tensors, new_kvs, inference_info.prefix_length) # Update cache
                 print('backend.py output_hidden_states.shape ', output_hidden_states.shape)
                 return (output_hidden_states,) # Return output hidden states

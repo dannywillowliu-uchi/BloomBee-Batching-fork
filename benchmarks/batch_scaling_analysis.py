@@ -52,7 +52,7 @@ async def test_batch_scaling():
     print("-" * 80)
     
     for batch_size in batch_sizes:
-        print(f"\n🧪 Testing batch_size={batch_size}")
+        print(f"\nTesting batch_size={batch_size}")
         
         try:
             # Prepare inputs
@@ -101,7 +101,7 @@ async def test_batch_scaling():
             
             results.append(result)
             
-            print(f"✅ Success!")
+            print(f"SUCCESS!")
             print(f"   Generation time: {generation_time:.2f}s")
             print(f"   Total tokens: {total_tokens}")
             print(f"   Throughput: {throughput:.2f} tokens/sec")
@@ -109,7 +109,7 @@ async def test_batch_scaling():
             print(f"   Sample output: {result['sample_output'][:100]}...")
             
         except Exception as e:
-            print(f"❌ Failed: {str(e)}")
+            print(f"FAILED: {str(e)}")
             result = {
                 'batch_size': batch_size,
                 'generation_time': None,
@@ -139,9 +139,9 @@ async def test_batch_scaling():
     
     for result in results:
         if result['throughput'] is not None:
-            print(f"{result['batch_size']:<12} {result['generation_time']:<10.2f} {result['total_tokens']:<8} {result['throughput']:<12.2f} {result['memory_delta']:<10.2f} {'✅':<8}")
+            print(f"{result['batch_size']:<12} {result['generation_time']:<10.2f} {result['total_tokens']:<8} {result['throughput']:<12.2f} {result['memory_delta']:<10.2f} {'PASS':<8}")
         else:
-            print(f"{result['batch_size']:<12} {'N/A':<10} {'N/A':<8} {'N/A':<12} {'N/A':<10} {'❌':<8}")
+            print(f"{result['batch_size']:<12} {'N/A':<10} {'N/A':<8} {'N/A':<12} {'N/A':<10} {'FAIL':<8}")
     
     if successful_results:
         print("\n" + "="*80)
@@ -189,7 +189,7 @@ async def test_batch_scaling():
             }
         }, f, indent=2)
     
-    print(f"\n📊 Results saved to: {results_file}")
+    print(f"\nResults saved to: {results_file}")
     print("\n" + "="*80)
     print("ANALYSIS COMPLETE!")
     print("="*80)

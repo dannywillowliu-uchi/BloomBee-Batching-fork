@@ -157,7 +157,7 @@ class DistributedLlamaForCausalLM(FromPretrainedMixin, RemoteGenerationMixin, Ll
         Prepare inputs for generation, handling incremental token generation properly.
         This method is crucial for correct embedding updates during generation.
         """
-        print(f"🔧 prepare_inputs_for_generation called:")
+        print(f"prepare_inputs_for_generation called:")
         print(f"   input_ids.shape: {input_ids.shape if input_ids is not None else None}")
         print(f"   past_key_values type: {type(past_key_values)}")
         
