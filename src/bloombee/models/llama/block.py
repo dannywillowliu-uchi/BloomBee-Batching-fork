@@ -418,14 +418,14 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         self,
         hidden_states: torch.Tensor,
         *args,
-        max_new_tokens: int=1, ############
-        do_sample: bool=True, ############
-        temperature: float=0.6, ############
-        stop: Optional[int] = None, ############
-        debug_mode: Optional[str] = None, ############
-        cut_gen_len: Optional[int] = None, ############
-        top_p: float = 0.9, ############
-        verbose: int = 0, ############
+        max_new_tokens: int=50,  # More reasonable default
+        do_sample: bool=False,  # More conservative default
+        temperature: float=1.0,  # Neutral default
+        stop: Optional[int] = None,
+        debug_mode: Optional[str] = None,
+        cut_gen_len: Optional[int] = None,
+        top_p: float = 1.0,  # More conservative default
+        verbose: int = 0,
         # k: int, ######## the num_gpu_batches 
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,

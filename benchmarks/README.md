@@ -4,7 +4,7 @@ This directory contains the batch inference implementation for BloomBee, enablin
 
 ## Overview
 
-Batch inference allows BloomBee to process multiple input sequences in parallel, significantly improving throughput and resource utilization. This implementation supports:
+Batch inference allows BloomBee to process multiple input sequences in parallel
 
 - **True Batch Processing**: All sequences in a batch are processed simultaneously using PyTorch's vectorized operations
 - **Dynamic Batch Sizes**: Support for batch sizes from 1 to 1024+ depending on available memory
@@ -177,4 +177,5 @@ Enable debug logging to troubleshoot issues:
 import logging
 logging.basicConfig(level=logging.DEBUG)
 ```
+
 

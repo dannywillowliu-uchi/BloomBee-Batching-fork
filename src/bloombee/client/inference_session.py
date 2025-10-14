@@ -40,7 +40,7 @@ class _ServerInferenceSession:
         outputs_aiter: AsyncIterator,
         *,
         max_length: int,
-        batch_size: int = 1,  # NEW: Support batch size
+        batch_size: Optional[int] = None,  # Make truly optional for backward compatibility
         **metadata,
     ):
         self.config = config
@@ -56,7 +56,7 @@ class _ServerInferenceSession:
         self.stepped = False
         self.closed = False
 
-        self._batch_size = batch_size  # NEW: Store batch size
+        self._batch_size = batch_size if batch_size is not None else 1  # Default to 1 for backward compatibility
         self._position = 0
         self.history = None  # Used in case of server failures to regenerate attention caches on new servers
         self.next_session = None
@@ -69,7 +69,7 @@ class _ServerInferenceSession:
         span: RemoteSpanInfo,
         uid: ModuleUID,
         rpc_info: RPCInfo,
-        batch_size: int = 1,  # NEW: Support batch size
+        batch_size: Optional[int] = None,  # Make truly optional for backward compatibility
         **metadata,
     ) -> _ServerInferenceSession:
         """Create a new session for a given remote module. This code is meant to be run inside RemoteExpertWorker"""
@@ -85,7 +85,7 @@ class _ServerInferenceSession:
             stub.rpc_inference(cls._read_inputs_from_queue(inputs_queue)),
             config.connect_timeout,
         )
-        return cls(config, span, uid, rpc_info, inputs_queue, outputs_stream, max_length=max_length, batch_size=batch_size, **metadata)
+        return cls(config, span, uid, rpc_info, inputs_queue, outputs_stream, max_length=max_length, batch_size=batch_size if batch_size is not None else 1, **metadata)
 
     @staticmethod
     async def _read_inputs_from_queue(queue: asyncio.Queue, input_timeout: Optional[float] = None) -> AsyncIterator:

@@ -416,14 +416,14 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         self,
         hidden_states: torch.Tensor,
         *args,
-        max_new_tokens: int=1, ############
-        do_sample: bool=True, ############
-        temperature: float=0.6, ############
-        stop: Optional[int] = None, ############
-        debug_mode: Optional[str] = None, ############
-        cut_gen_len: Optional[int] = None, ############
-        top_p: float = 0.9, ############
-        verbose: int = 0, ############
+        max_new_tokens: int=50,  # More reasonable default
+        do_sample: bool=False,  # More conservative default
+        temperature: float=1.0,  # Neutral default
+        stop: Optional[int] = None,
+        debug_mode: Optional[str] = None,
+        cut_gen_len: Optional[int] = None,
+        top_p: float = 1.0,  # More conservative default
+        verbose: int = 0,
         # k: int, ######## the num_gpu_batches 
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
@@ -466,7 +466,14 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         
         # Performance optimization: Use cached tokenizer, avoid repeated creation
         if self._cached_tokenizer is None:
-            self._cached_tokenizer = AutoTokenizer.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0", padding_side="left", legacy=False)
+            # Dynamic model name detection for compatibility with different models
+            model_name = getattr(self.llama_config, 'name', 'tinyllama-1.1b-chat-v1.0')
+            if 'tinyllama' in model_name.lower():
+                tokenizer_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+            else:
+                tokenizer_name = f"huggyllama/{model_name}"
+            
+            self._cached_tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, padding_side="left", legacy=False)
             self._cached_tokenizer.pad_token = '[PAD]'
         tokenizer = self._cached_tokenizer
         
