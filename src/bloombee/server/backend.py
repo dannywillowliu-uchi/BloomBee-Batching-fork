@@ -60,47 +60,6 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
         self.config = config
         self.memory_cache = memory_cache
         self.max_chunk_size_bytes = max_chunk_size_bytes
-        
-        # Create KVCacheManager for proper cache management
-        from bloombee.server.memory_cache_manager import KVCacheManager
-        from bloombee.flexgen_utils.policy import Policy
-        from bloombee.flexgen_utils.ExecutionEnv import ExecutionEnv
-        
-        # Create a default policy and environment for KVCacheManager
-        # These should ideally be passed from the server, but we'll create defaults for now
-        from bloombee.flexgen_utils.compression import CompressionConfig
-        
-        policy = Policy(
-            gpu_batch_size=1,
-            num_gpu_batches=1,
-            w_gpu_percent=100,
-            w_cpu_percent=0,
-            cache_gpu_percent=100,  # Use GPU for cache by default
-            cache_cpu_percent=0,
-            act_gpu_percent=100,
-            act_cpu_percent=0,
-            overlap=False,
-            sep_layer=False,
-            pin_weight=False,
-            cpu_cache_compute=False,
-            attn_sparsity=1.0,
-            compress_weight=False,
-            comp_weight_config=CompressionConfig(num_bits=8, group_size=64, group_dim=0, symmetric=True),
-            compress_cache=False,
-            comp_cache_config=CompressionConfig(num_bits=8, group_size=64, group_dim=0, symmetric=True)
-        )
-        
-        # Create ExecutionEnv - this should match the server's env
-        env = ExecutionEnv.create("~./flexgen_offload_dir", "cpu")
-        
-        # Create KVCacheManager
-        self.cache_manager = KVCacheManager(
-            cache_max_size_tokens=memory_cache.max_size_tokens,
-            max_alloc_timeout=memory_cache.max_alloc_timeout or 600,
-            policy=policy,
-            env=env,
-            block_config=config
-        )
 
         for name, param in self.module.named_parameters():
             assert not param.requires_grad, f"Block parameters must not accumulate gradients, but {name} does"
@@ -171,11 +130,9 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
 
     def get_inference_cache_descriptors(self, batch_size: int, max_length: int) -> Sequence[TensorDescriptor]:
         """Create tensor descriptors for attention cache tensors used during inference_step"""
-        print(f"[DEBUG] Server: get_inference_cache_descriptors called with batch_size={batch_size}, max_length={max_length}")
         
         # Remove hardcoded cap - let the system handle larger sequences
         # max_length = min(max_length, 256)  # REMOVED: This was preventing proper sequence expansion
-        print(f"[DEBUG] Server: max_length set to {max_length} (no hardcoded cap)")
         
         head_dim = self.config.hidden_size // self.config.num_attention_heads
         cache_tensors = []
@@ -299,7 +256,6 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
 
                 # Fixed: Restore cache update logic  
                 self._update_cache_inplace(cache_tensors, new_kvs, inference_info.prefix_length) # Update cache
-                print('backend.py output_hidden_states.shape ', output_hidden_states.shape)
                 return (output_hidden_states,) # Return output hidden states
                 
         except Exception as e:
@@ -327,9 +283,6 @@ class TransformerBackend(ModuleBackend): # hivemind: ModuleBackend.module: nn.Mo
             max_reasonable_chunk = 256  # Reduced from 512 for single sequence too
 
         chunk_length = min(chunk_length, max_reasonable_chunk)
-
-        # Debug print for memory allocation
-        print(f"[DEBUG] _estimate_max_chunk_length: batch_size={batch_size}, max_allocation_bytes={self.max_chunk_size_bytes}, attn_bytes_per_token={attn_bytes_per_token}, chunk_length={chunk_length}, max_reasonable_chunk={max_reasonable_chunk}")
 
         # Debug logging for memory allocation
         if batch_size > 1:

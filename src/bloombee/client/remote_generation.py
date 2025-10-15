@@ -168,10 +168,8 @@ class RemoteGenerationMixin(_SkipTokensMixin):
             # Use existing session if compatible
             current_batch_size = getattr(self._current_session, '_batch_size', 1)
             if current_batch_size == batch_size:
-                print(f"[DEBUG] generate_batch: Using existing session with batch_size={batch_size}")
                 return self._generate_batch_internal(inputs, **kwargs)
             else:
-                print(f"[DEBUG] generate_batch: Closing incompatible session (current={current_batch_size}, requested={batch_size})")
                 self._current_session.close()
                 self._current_session = None
         
@@ -192,9 +190,6 @@ class RemoteGenerationMixin(_SkipTokensMixin):
             input_length = inputs.shape[1] if inputs is not None else 0
             session_max_length += input_length + max_new_tokens
         
-        print(f"[DEBUG] generate_batch: Creating session with max_length={session_max_length}")
-        print(f"[DEBUG] generate_batch: pre_seq_len={self.transformer.config.pre_seq_len}, input_length={inputs.shape[1] if inputs is not None else 0}, max_new_tokens={max_new_tokens}")
-        
         # Create session with batch_size and calculated max_length
         context_manager = self.inference_session(max_length=session_max_length, batch_size=batch_size)
         
@@ -204,11 +199,23 @@ class RemoteGenerationMixin(_SkipTokensMixin):
     
     def _generate_batch_internal(self, batch_inputs: torch.Tensor, *args, **kwargs):
         """Internal method for batch generation using the existing generation infrastructure"""
-        # For batch generation, we need to process each sequence in the batch
-        # The RemoteSequential will handle the distributed processing automatically
+        # Ensure all sequences in the batch have the same length
+        # This prevents attention mask and position ID assertion violations
+        
+        batch_size, seq_len = batch_inputs.shape
+        
+        # Create uniform attention mask (all 1s) - no padding zeros
+        attention_mask = torch.ones_like(batch_inputs)
+        
+        # Create uniform position IDs (consecutive) - no padding artifacts
+        position_ids = torch.arange(seq_len, device=batch_inputs.device).unsqueeze(0).expand(batch_size, -1)
+        
+        # Add attention_mask and position_ids to kwargs to override any existing ones
+        kwargs['attention_mask'] = attention_mask
+        kwargs['position_ids'] = position_ids
         
         # Use the existing generate method which handles all the complexity
-        # including proper attention caching, position IDs, etc.
+        # including proper attention caching, etc.
         outputs = self.generate(
             input_ids=batch_inputs,
             *args,

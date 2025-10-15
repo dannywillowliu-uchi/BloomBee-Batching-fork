@@ -93,8 +93,9 @@ class RemoteSequential(nn.Module):
 
         :param max_length: Maximal expected length of inference results. Servers use this parameter
                            to calculate the size of attention caches allocated to this client.
+        :param batch_size: Batch size for the inference session (optional, defaults to 1)
         """
-
+        # Pass all kwargs directly to InferenceSession constructor (including batch_size)
         with InferenceSession(self.sequence_manager, **kwargs) as session, self.use_session(session):
             yield session
 

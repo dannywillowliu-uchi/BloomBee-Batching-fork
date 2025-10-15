@@ -76,6 +76,8 @@ def main():
     parser.add_argument('--max_batch_size', type=int, default=None,
                         help='The total number of tokens in the same batch will not exceed this value. '
                              'Default: 8192 for models with multi-query attention (based on Llama 2, Falcon), 2048 for others')
+    parser.add_argument('--default_batch_size', type=int, default=1,
+                        help='Default batch size for inference sessions. Default: 1')
     parser.add_argument('--max_chunk_size_bytes', type=int, default=256 * 1024 * 1024,
                         help='Maximum size of activation tensor processed in one go; larger tensors are split into chunks')
     parser.add_argument('--attn_cache_tokens', type=int, default=None,

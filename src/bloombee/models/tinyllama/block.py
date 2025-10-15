@@ -360,7 +360,6 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         else:
             model_name = os.path.basename(self.llama_config._name_or_path.rstrip('/'))
         
-        print(f"DEBUG: extracted model_name = '{model_name}'")
         self.llama_config.name = model_name
         expanded_path = os.path.abspath(os.path.expanduser(
             os.path.join(self.path, f"{model_name}-np")))
@@ -416,13 +415,13 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
         self,
         hidden_states: torch.Tensor,
         *args,
-        max_new_tokens: int=50,  # More reasonable default
-        do_sample: bool=False,  # More conservative default
-        temperature: float=1.0,  # Neutral default
+        max_new_tokens: int=1,  # Restore original upstream default
+        do_sample: bool=True,  # Restore original upstream default
+        temperature: float=0.7,  # Restore original upstream default
         stop: Optional[int] = None,
         debug_mode: Optional[str] = None,
         cut_gen_len: Optional[int] = None,
-        top_p: float = 1.0,  # More conservative default
+        top_p: float = 0.9,  # Restore original upstream default
         verbose: int = 0,
         # k: int, ######## the num_gpu_batches 
         attention_mask: Optional[torch.Tensor] = None,
@@ -578,10 +577,8 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):  # used in block_utils.py r
                 # In distributed inference, we need to know the real position for cache management
                 if position_ids is not None and position_ids.numel() > 0:
                     current_position = position_ids.flatten()[0].item()  # Get the first position value
-                    print(f'🔧 Using actual position from position_ids: {current_position}')
                 else:
                     current_position = 0  # Fallback for initial token
-                    print(f'🔧 No position_ids provided, using fallback position: {current_position}')
                 
                 i = current_position  # Use the actual position instead of hardcoded 0
                 

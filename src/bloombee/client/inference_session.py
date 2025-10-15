@@ -114,8 +114,10 @@ class _ServerInferenceSession:
         *,
         step_id: str,
     ) -> torch.Tensor:
-        # Validate batch size
-        assert inputs.shape[0] == self._batch_size, f"Expected batch_size {self._batch_size}, got {inputs.shape[0]}"
+        # Auto-adjust batch size to match input tensor
+        if inputs.shape[0] != self._batch_size:
+            logger.info(f"Auto-adjusting batch_size from {self._batch_size} to {inputs.shape[0]} to match input tensor")
+            self._batch_size = inputs.shape[0]
         """
         Inference step: send a chunk of input tensors and receive a chunk of outputs
         :prompts: optional DEEP prompts, added to a prefix of each layer's outputs,
@@ -245,12 +247,13 @@ class InferenceSession:
     An interface to a multi-step *inference* session for a sequence of remote transformer blocks
     """
 
-    def __init__(self, sequence_manager: RemoteSequenceManager, max_length: int):
+    def __init__(self, sequence_manager: RemoteSequenceManager, max_length: int, batch_size: Optional[int] = None):
         self._sequence_manager = sequence_manager
         self._closed = False
         self._server_sessions = []
         self._position = 0
         self._max_length = max_length
+        self._batch_size = batch_size if batch_size is not None else 1  # Store batch_size for server sessions
         self.output_ids = None
         self.past_key_values = None
 
@@ -275,6 +278,10 @@ class InferenceSession:
             for span in chosen_spans:
                 span_uids = CHAIN_DELIMITER.join(self._sequence_manager.block_uids[span.start : span.end])
                 metadata = self._sequence_manager.get_request_metadata("rpc_inference", span_uids, peer_id=span.peer_id)
+                
+                # Get batch_size from the session if available
+                batch_size = getattr(self, '_batch_size', None)
+                
                 session = RemoteExpertWorker.run_coroutine(
                     _ServerInferenceSession.create(
                         self._sequence_manager.config,
@@ -283,6 +290,7 @@ class InferenceSession:
                         span_uids,
                         rpc_info=self._sequence_manager.rpc_info,
                         max_length=self._max_length,
+                        batch_size=batch_size,
                         **metadata,
                     )
                 )

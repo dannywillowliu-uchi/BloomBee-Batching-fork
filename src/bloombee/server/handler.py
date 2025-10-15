@@ -40,21 +40,6 @@ from bloombee.utils.convert_block import QuantType
 
 logger = get_logger(__name__)
 
-# Create dedicated offloading debug logger
-import logging
-offload_logger = logging.getLogger('bloombee.offloading')
-offload_logger.setLevel(logging.INFO)
-
-from datetime import datetime, timezone  
-# def print_time_now(s):
-#     # Get the current time in UTC  
-#     current_utc_datetime = datetime.now(timezone.utc)  
-#     # Format the datetime to the desired string format  
-#     formatted_utc_time = current_utc_datetime.strftime('%Y-%m-%d %H:%M:%S.%f %Z')  
-#     print('\t\t\t'+s+" UTC Time: "+ str(formatted_utc_time) )  
-    
-
-
 # Fix pickling protobufs, see https://stackoverflow.com/a/74873028
 sys.modules["runtime_pb2"] = runtime_pb2
 
@@ -647,18 +632,14 @@ class TransformerConnectionHandler(ConnectionHandler):
         # offload_logger.info(f"   - Max length: {max_length}")
         # offload_logger.info(f"   - Timeout: {timeout}")
         
-        # Use KVCacheManager's offloading strategy
-        cache_manager = backends[0].cache_manager
-        
-        
-        # Use the original cache allocation method, but add offloading debug information
+        # Use the original cache allocation method
         descriptors = [backend.get_inference_cache_descriptors(batch_size, max_length) for backend in backends]
 
         logger.info(
             f"OFFLOAD: requesting KV allocation for {len(backends)} blocks, "
             f"batch={batch_size}, max_length={max_length}"
         )
-        async with backends[0].cache_manager.allocate_cache(*chain(*descriptors), timeout=timeout) as handles:
+        async with backends[0].memory_cache.allocate_cache(*chain(*descriptors), timeout=timeout) as handles:
             logger.info("OFFLOAD: allocation completed; entering use_cache region")
             yield nested_pack(handles, descriptors)
 
@@ -695,7 +676,7 @@ class TransformerConnectionHandler(ConnectionHandler):
         result = {
             "version": bloombee.__version__,
             "dht_client_mode": self.dht.client_mode,
-            CACHE_TOKENS_AVAILABLE: backend.memory_cache.tokens_left,
+            CACHE_TOKENS_AVAILABLE: backend.memory_cache.bytes_left,
         }
 
         if request.uid:

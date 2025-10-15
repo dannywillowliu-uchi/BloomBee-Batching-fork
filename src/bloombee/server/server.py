@@ -86,6 +86,7 @@ class Server:
         inference_max_length: Optional[int] = None,
         min_batch_size: int = 1,
         max_batch_size: Optional[int] = None,
+        default_batch_size: int = 1,
         max_chunk_size_bytes: int = 256 * 1024 * 1024,
         max_alloc_timeout: float = 600,
         attn_cache_tokens: Optional[int] = None,
@@ -230,6 +231,7 @@ class Server:
         if inference_max_length is None:
             inference_max_length = 8192 if is_multiquery_attn else 2048
         self.min_batch_size, self.max_batch_size = min_batch_size, max_batch_size
+        self.default_batch_size = default_batch_size
         self.inference_max_length = inference_max_length
         self.max_chunk_size_bytes = max_chunk_size_bytes
         self.max_alloc_timeout = max_alloc_timeout
@@ -554,7 +556,6 @@ class ModuleContainer(threading.Thread):
         blocks = {}
         try:
             for module_uid, block_index in zip(module_uids, block_indices):
-                print('blocks uid before load_pretrained_block() ', module_uid )
                 # see_memory_usage("-----------------------------------------before petals load pretrained block ")
                 block = load_pretrained_block(
                     converted_model_name_or_path,
@@ -797,7 +798,7 @@ class ModuleAnnouncerThread(threading.Thread):
         while True:
             start_time = time.perf_counter()
 
-            self.server_info.cache_tokens_left = self.memory_cache.tokens_left
+            self.server_info.cache_tokens_left = self.memory_cache.bytes_left // self.bytes_per_token
             if self.server_info.state != ServerState.OFFLINE:
                 self._ping_next_servers()
                 self.server_info.next_pings = {
