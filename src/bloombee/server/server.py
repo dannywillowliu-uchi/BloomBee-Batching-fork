@@ -121,6 +121,7 @@ class Server:
         use_relay: bool = True,
         use_auto_relay: bool = True,
         adapters: Sequence[str] = (),
+        batch_size: int = 1,
         **kwargs,
     ):
         """Create a server with one or more bloom blocks. See run_server.py for documentation."""
@@ -260,18 +261,25 @@ class Server:
         self.strict_block_indices, self.num_blocks = block_indices, num_blocks
 
         ##############################################################
-        self.env = ExecutionEnv.create("~./flexgen_offload_dir") ##########
+        self.env = ExecutionEnv.create("~./flexgen_offload_dir", device_type=device.type) ##########
 
-        # Policy: weights on GPU, KV cache on DISK (100%), activations on CPU
-        # If you want to switch to mixed, change cache_cpu_percent to >0 (the rest will automatically be assigned to disk)
-        # Enable KV cache compression. Start with CPU-only cache for stability.
-        # You can switch to Disk-only by setting cache_cpu_percent=0 and cache_gpu_percent=0, and using disk 100% in env.
-        # Default to GPU-only, no offloading, no compression
+        # Configure resource distribution based on device type
+        if device.type == "cpu":
+            # CPU-only mode: all resources on CPU
+            w_gpu_percent, w_cpu_percent = 0, 100
+            cache_gpu_percent, cache_cpu_percent = 0, 100
+            act_gpu_percent, act_cpu_percent = 0, 100
+        else:
+            # GPU mode: all resources on GPU (default)
+            w_gpu_percent, w_cpu_percent = 100, 0
+            cache_gpu_percent, cache_cpu_percent = 100, 0
+            act_gpu_percent, act_cpu_percent = 100, 0
+
         self.policy = Policy(
-            1, 1,            # gpu_batch_size, num_gpu_batches
-            100, 0,          # w_gpu_percent, w_cpu_percent
-            100, 0,          # cache_gpu_percent, cache_cpu_percent (KV on GPU)
-            100, 0,          # act_gpu_percent, act_cpu_percent (activations on GPU)
+            batch_size, 1,   # gpu_batch_size, num_gpu_batches
+            w_gpu_percent, w_cpu_percent,          # w_gpu_percent, w_cpu_percent
+            cache_gpu_percent, cache_cpu_percent,  # cache_gpu_percent, cache_cpu_percent
+            act_gpu_percent, act_cpu_percent,      # act_gpu_percent, act_cpu_percent
             overlap=False, sep_layer=True, pin_weight=True,
             cpu_cache_compute=False, attn_sparsity=1.0,
             compress_weight=False,

@@ -165,9 +165,16 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):
         else:
             raise NotImplementedError()
 
-        self.load_weight_stream = torch.cuda.Stream()
-        self.load_cache_stream = torch.cuda.Stream()
-        self.store_cache_stream = torch.cuda.Stream()
+        # Conditionally create CUDA streams only if CUDA is available
+        if torch.cuda.is_available():
+            self.load_weight_stream = torch.cuda.Stream()
+            self.load_cache_stream = torch.cuda.Stream()
+            self.store_cache_stream = torch.cuda.Stream()
+        else:
+            # CPU-only mode: use None for streams
+            self.load_weight_stream = None
+            self.load_cache_stream = None
+            self.store_cache_stream = None
 
         num_layers, num_gpu_batches = self.num_layers, self.policy.num_gpu_batches
         self.cache_home = array_2d(num_layers, num_gpu_batches, ValueHolder)
@@ -252,12 +259,21 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):
     def _init_gpu_streams_if_needed(self):
         """Lazy initialization of GPU streams to avoid duplicate creation"""
         if not self._streams_initialized:
-            if not hasattr(self, 'load_weight_stream'):
-                self.load_weight_stream = torch.cuda.Stream()
-            if not hasattr(self, 'load_cache_stream'):
-                self.load_cache_stream = torch.cuda.Stream()
-            if not hasattr(self, 'store_cache_stream'):
-                self.store_cache_stream = torch.cuda.Stream()
+            if torch.cuda.is_available():
+                if not hasattr(self, 'load_weight_stream'):
+                    self.load_weight_stream = torch.cuda.Stream()
+                if not hasattr(self, 'load_cache_stream'):
+                    self.load_cache_stream = torch.cuda.Stream()
+                if not hasattr(self, 'store_cache_stream'):
+                    self.store_cache_stream = torch.cuda.Stream()
+            else:
+                # CPU-only mode: use None for streams
+                if not hasattr(self, 'load_weight_stream'):
+                    self.load_weight_stream = None
+                if not hasattr(self, 'load_cache_stream'):
+                    self.load_cache_stream = None
+                if not hasattr(self, 'store_cache_stream'):
+                    self.store_cache_stream = None
             self._streams_initialized = True
 
     def set_task(self, task):
@@ -581,7 +597,7 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):
     def load_weight(self, i, j, k, overlap=True):
         # Fine-grained weight loading monitoring
         individual_weight_start = time.time()
-        if overlap:
+        if overlap and self.load_weight_stream is not None:
             with torch.cuda.stream(self.load_weight_stream):
                 self.layers[j].load_weight(self.weight_home[j], self.weight_read_buf[j], k)
         else:
@@ -609,7 +625,7 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):
 
                 # Cache loading monitoring
         cache_load_start = time.time()
-        if overlap:
+        if overlap and self.load_cache_stream is not None:
             with torch.cuda.stream(self.load_cache_stream):
                 self.layers[j].load_cache(self.cache_home[j][k], self.cache_read_buf[j][k], i)
         else:
@@ -630,7 +646,7 @@ class OptimizedLlamaDecoderLayer(LlamaDecoderLayer):
                 return
 
         # print(f"store_cache in block")
-        if overlap:
+        if overlap and self.store_cache_stream is not None:
             with torch.cuda.stream(self.store_cache_stream):
                 self.layers[j].store_cache(self.cache_home[j][k], self.cache_write_buf[j][k], i)
             # Remove unnecessary synchronization to reduce GPU blocking
